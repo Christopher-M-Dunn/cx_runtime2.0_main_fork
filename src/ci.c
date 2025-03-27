@@ -214,19 +214,6 @@ static void ucxt_switch(cx_idx_t new_sel) {
     ucxt_restore(new_sel);
 }
 
-void inline cx_sel(cx_select_t sel) {
-    cx_idx_t new_sel = {.idx = sel};
-    cx_idx_t prev_sel = {.idx = cx_csr_read(CX_PREV_SELECTOR_USER)};
-    if (prev_sel.idx > 0) {
-        // TODO: Update the previously used selector
-        vst[prev_sel.sel.cxu_id][prev_sel.sel.state_id] = prev_sel.idx;
-    }
-    if (new_sel.idx > 0) {
-        cx_csr_write(CX_PREV_SELECTOR_USER, vst[new_sel.sel.cxu_id][new_sel.sel.state_id]);
-    }
-    cx_csr_write(CX_SELECTOR_USER, sel);
-}
-
 static void cx_init() {
     for (int i = 0; i < NUM_CXUS; i++) {
         for (int j = 0; j < MAX_NUM_STATES; j++) {
@@ -264,11 +251,6 @@ void cx_close(cx_select_t sel) {
         : "r"(a0), "r"(syscall_id)
         :
     );
-    int ret = a0;
-    cxu_id_t cxu_id = CX_GET_CXU_ID(sel);
-    cx_state_id_t state_id = CX_GET_STATE_ID(sel);
-    vst[cxu_id][state_id] = -1;
-//   cx_csr_write(CX_SELECTOR_USER, CX_LEGACY);
 }
 
 void cx_error_clear() {

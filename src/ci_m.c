@@ -4,7 +4,6 @@
 #include <stdio.h>
 
 #include "../include/ci_m.h"
-#include "../include/utils_m.h"
 #include "../include/list.h"
 
 #include "../zoo/max/max_common.h"
@@ -52,6 +51,7 @@ static inline cx_select_t gen_cx_sel(cxu_id_t cxu_id, cx_state_id_t state_id,
     cx_idx_t cx_sel = {.sel = {   .cxu_id = cxu_id, 
                                   .state_id = state_id,
                                   .v_state_id = vstate_id,
+                                  .cxe = 0,
                                   .version = 1}};
     return cx_sel.idx;
 }
@@ -121,34 +121,39 @@ static int is_valid_state_id(cxu_id_t cxu_id, cx_state_id_t state_id)
 
 // populates the cx_map
 void cx_init() {
-    // zero the cx_selector_user
-    cx_csr_write(CX_SELECTOR_USER, 0);
+    // zero the mcx_selector
+    cx_csr_write(MCX_SELECTOR, 0);
     
     // 0 initialize the cx_status csr
-    cx_csr_write(CX_STATUS, 0);
+    // cx_csr_write(CX_STATUS, 0);
 
     cx_map[0].cx_guid = CX_GUID_VECTOR;
-    cx_map[1].cx_guid = CX_GUID_MAX;
-    cx_map[2].cx_guid = CX_GUID_MULACC;
+    cx_map[1].cx_guid = CX_GUID_MULACC;
+    cx_map[2].cx_guid = CX_GUID_MAX;
     cx_map[3].cx_guid = CX_GUID_NN_ACC;
 
     cx_map[0].num_states = CX_VECTOR_NUM_STATES;
-    cx_map[1].num_states = CX_MAX_NUM_STATES;
-    cx_map[2].num_states = CX_MULACC_NUM_STATES;
+    cx_map[1].num_states = CX_MULACC_NUM_STATES;
+    cx_map[2].num_states = CX_MAX_NUM_STATES;
     cx_map[3].num_states = CX_NN_ACC_NUM_STATES;
 
     for (int i = 0; i < NUM_CXUS; i++) {
-        cx_map[i].avail_state_ids = malloc(cx_map[i].num_states * sizeof(int));
-        cx_map[i].state_info = malloc(cx_map[i].num_states * sizeof(cx_state_info_t));
-        for (int j = 0; j < cx_map[i].num_states; j++) {
-            INIT_LIST_HEAD(&cx_map[i].state_info[j].vstate);
-            cx_map[i].avail_state_ids[j] = 1;
-            cx_map[i].state_info[j].virt = -1;
-            cx_map[i].state_info[j].vcounter = 0;
-            cx_map[i].state_info[j].prev_used_vid = -1;
-            for (int k = 0; k < 4; k++) {
-                cx_map[i].state_info[j].vstate_id[k] = 0;
+        if (cx_map[i].num_states) {
+            cx_map[i].avail_state_ids = malloc(cx_map[i].num_states * sizeof(int));
+            cx_map[i].state_info = malloc(cx_map[i].num_states * sizeof(cx_state_info_t));
+            for (int j = 0; j < cx_map[i].num_states; j++) {
+                INIT_LIST_HEAD(&cx_map[i].state_info[j].vstate);
+                cx_map[i].avail_state_ids[j] = 1;
+                cx_map[i].state_info[j].virt = -1;
+                cx_map[i].state_info[j].vcounter = 0;
+                cx_map[i].state_info[j].prev_used_vid = -1;
+                for (int k = 0; k < 4; k++) {
+                    cx_map[i].state_info[j].vstate_id[k] = 0;
+                }
             }
+        } else {
+            cx_map[i].state_info = malloc(1 * sizeof(cx_state_info_t));
+            cx_map[i].state_info[0].prev_used_vid = -1;
         }
     }
 }
@@ -174,26 +179,17 @@ void context_restore(cx_state_data_t *data) {
     CX_WRITE_STATUS(data->status);
 }
 
-void cx_sel(cx_select_t cx_sel) {
-    cx_idx_t new_sel =  { .idx = cx_sel };
-    int prev_used_vid = cx_map[new_sel.sel.cxu_id].state_info[new_sel.sel.state_id].prev_used_vid;
-
-    cx_csr_write(CX_SELECTOR_USER, cx_sel);
-
-    if (prev_used_vid == -1 ||
-        new_sel.sel.v_state_id == prev_used_vid) {
-        cx_map[new_sel.sel.cxu_id].state_info[new_sel.sel.state_id].prev_used_vid = new_sel.sel.v_state_id;
-        return;
-    }
+void context_switch(cxu_id_t cxu_id, cx_state_id_t state_id, cx_vstate_id_t vstate_id, cx_vstate_id_t prev_vstate_id) {
 
     // context switching needed
+    
     cx_state_data_t *new_state_data = NULL, *prev_state_data = NULL, *tmp_state_data = NULL;
-    list_for_each_entry(tmp_state_data, &cx_map[new_sel.sel.cxu_id].state_info[new_sel.sel.state_id].vstate, list) {
-        if (tmp_state_data->v_id == prev_used_vid) {
+    list_for_each_entry(tmp_state_data, &cx_map[cxu_id].state_info[state_id].vstate, list) {
+        if (tmp_state_data->v_id == prev_vstate_id) {
             prev_state_data = tmp_state_data;
         }
 
-        if (tmp_state_data->v_id == new_sel.sel.v_state_id) {
+        if (tmp_state_data->v_id == vstate_id) {
             new_state_data = tmp_state_data;
         }
 
@@ -204,9 +200,24 @@ void cx_sel(cx_select_t cx_sel) {
 
     context_save(prev_state_data);
     context_restore(new_state_data);
-
-    cx_map[new_sel.sel.cxu_id].state_info[new_sel.sel.state_id].prev_used_vid = new_sel.sel.v_state_id;
 }
+
+// void cx_sel(cx_select_t cx_sel) {
+//     // cx_idx_t new_sel =  { .idx = cx_sel };
+//     // cxu_id_t cxu_id = new_sel.sel.cxu_id;
+//     // cx_state_id_t state_id = new_sel.sel.state_id;
+//     // cx_vstate_id_t vstate_id = new_sel.sel.v_state_id;
+
+//     // int prev_used_vid = cx_map[cxu_id].state_info[state_id].prev_used_vid;
+//     cx_csr_write(MCX_SELECTOR, cx_sel);
+    
+//     // if (prev_used_vid != -1 &&
+//     //     vstate_id != prev_used_vid) {
+//     //     printf("Context Switching\n");
+//     //     context_switch(cxu_id, state_id, vstate_id, prev_used_vid);
+//     // }
+//     // cx_map[cxu_id].state_info[state_id].prev_used_vid = vstate_id;
+// }
 
 static void initialize_state() {
 
@@ -216,6 +227,7 @@ static void initialize_state() {
     // 4. Read the state to get the state_size
     cx_stctxs_t stat = { .idx = status };
     uint state_size = stat.sel.state_size;
+    // printf("state_size: %d\n", state_size);
 
     // 5. Set the CXU to initial state
     stat.sel.cs = CX_INITIAL;
@@ -239,40 +251,44 @@ static int alloc_sel(cxu_id_t cxu_id) {
         return -1;
     }
 
-    cx_vstate_id_t vstate_id = get_free_vstate(cxu_id, state_id);
+    // cx_vstate_id_t vstate_id = get_free_vstate(cxu_id, state_id);
+    cx_vstate_id_t vstate_id = 0;
 
-    if (vstate_id == -1) {
-        return -1;
-    }
+    // if (vstate_id == -1) {
+    //     return -1;
+    // }
 
     cx_select_t new_cx_sel = gen_cx_sel(cxu_id, state_id, vstate_id);
-    cx_state_data_t *state = malloc(sizeof(cx_state_data_t));
-    if (!state) {
-        return -1;
-    }
+    // cx_state_data_t *state = malloc(sizeof(cx_state_data_t));
+    // if (!state) {
+    //     return -1;
+    // }
     
-    state->data = malloc(sizeof(uint) * MAX_STATE_SIZE);
-    if (!state->data) {
-        return -1;
-    }
+    // state->data = malloc(sizeof(uint) * 1);
+    // if (!state->data) {
+    //     return -1;
+    // }
 
-    state->v_id = vstate_id;
-    list_add(&state->list, &cx_map[cxu_id].state_info[state_id].vstate);
-
+    // state->v_id = vstate_id;
+    // list_add(&state->list, &cx_map[cxu_id].state_info[state_id].vstate);
     return new_cx_sel;
 }
 
-static int initialized = 0;
 
 int32_t cx_open(cx_guid_t cx_guid, cx_virt_t cx_virt, cx_select_t user_cx_sel) {
+    static int initialized = 0;
+    
     if (!initialized) {
         cx_init();
         initialized = 1;
+        // printf("Initializing!\n");
     }
+
     cxu_id_t cxu_id = -1;
     for (int j = 0; j < NUM_CXUS; j++) {
         if (cx_map[j].cx_guid == cx_guid) {
             cxu_id = j;
+            break;
         }
     }
     
@@ -289,7 +305,7 @@ int32_t cx_open(cx_guid_t cx_guid, cx_virt_t cx_virt, cx_select_t user_cx_sel) {
             return -1;
         }
 
-        cx_select_t prev_sel = cx_csr_read(CX_SELECTOR_USER);
+        cx_select_t prev_sel = cx_csr_read(MCX_SELECTOR);
         cx_sel(new_cx_sel);
 
         initialize_state();
@@ -313,26 +329,25 @@ void cx_close(cx_select_t cx_sel)
     return;
   } else { // Stateful
     cx_state_id_t state_id = CX_GET_STATE_ID(cx_sel);
-    cx_vstate_id_t vstate_id = CX_GET_VIRT_STATE_ID(cx_sel);
+    // cx_vstate_id_t vstate_id = CX_GET_VIRT_STATE_ID(cx_sel);
     cx_map[cxu_id].avail_state_ids[state_id] = 1;
+    
+    // cx_state_data_t* state_data;
+//     list_for_each_entry(state_data, &cx_map[cxu_id].state_info[state_id].vstate, list) {
+//         if (state_data->v_id == vstate_id) {
+//             list_del(&state_data->list);
+//             free(state_data->data);
+//             break;
+//         }
+//     }
 
-    cx_state_data_t* state_data;
+//     free_vstate(cxu_id, state_id, vstate_id);
 
-    list_for_each_entry(state_data, &cx_map[cxu_id].state_info[state_id].vstate, list) {
-        if (state_data->v_id == vstate_id) {
-            list_del(&state_data->list);
-            free(state_data->data);
-            break;
-        }
-    }
-
-    free_vstate(cxu_id, state_id, vstate_id);
-
-    if (is_state_unused(cxu_id, state_id)) {
-        cx_map[cxu_id].state_info[state_id].virt = -1;
-        cx_map[cxu_id].state_info[state_id].prev_used_vid = -1;
-    }
-
+//     if (is_state_unused(cxu_id, state_id)) {
+//         cx_map[cxu_id].state_info[state_id].virt = -1;
+//     }
+//     if (vstate_id == cx_map[cxu_id].state_info[state_id].prev_used_vid)
+//         cx_map[cxu_id].state_info[state_id].prev_used_vid = -1;
   }
 }
 
@@ -343,4 +358,3 @@ cx_error_t cx_error_read() {
 void cx_error_clear() {
   cx_csr_write(CX_STATUS, 0);
 }
-

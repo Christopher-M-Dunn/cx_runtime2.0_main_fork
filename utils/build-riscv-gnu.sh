@@ -5,7 +5,7 @@
 #####
 
 pushd $CX2_ROOT/utils/riscv-gnu-toolchain
-git submodule update --init binutils gcc gdb glibc linux-headers newlib dejagnu
+git submodule update --init --progress binutils gcc gdb glibc linux-headers newlib dejagnu
 
 sudo apt-get install autoconf automake autotools-dev curl python3 python3-pip python3-tomli libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev libexpat-dev ninja-build git cmake libglib2.0-dev libslirp-dev
 

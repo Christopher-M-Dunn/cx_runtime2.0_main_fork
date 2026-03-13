@@ -112,8 +112,10 @@ qemu:
 	-kernel linux_cx/arch/riscv/boot/Image \
 	-initrd utils/initramfs/initramfs.cpio.gz \
 	-append "console=ttyS0" \
-	-icount shift=0
-
+	-icount shift=0 \
+	-virtfs local,path=./qemu-share,security_model=none,mount_tag=hostshare
+#	-drive file=cx_runtime2.0_main.qcow2,format=qcow2,if=virtio
+# added last 2 lines above
 clean:
 	rm -rf build/
 	rm -rf build-qemu/

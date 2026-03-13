@@ -53,6 +53,9 @@ mount -t proc      proc      /proc
 mount -t sysfs     sysfs     /sys
 mount -t tmpfs     tmpfs     /tmp
 
+### added by CMD for share folder ###
+hostshare  /mnt  9p  trans=virtio,version=9p2000.L,rw  0  0
+
 # Busybox TTY fix
 setsid cttyhack sh
 

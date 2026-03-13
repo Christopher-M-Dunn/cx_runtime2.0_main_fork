@@ -39,3 +39,4 @@
 utils/busybox
 utils/initramfs
 utils/riscv
+*.qcow2

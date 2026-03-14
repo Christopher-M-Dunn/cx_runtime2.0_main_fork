@@ -39,6 +39,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+#~ Delete init if it exists, otherwise do nothing
+rm -f init
+
 touch init
 
 cat <<EOT >> init
@@ -53,8 +56,11 @@ mount -t proc      proc      /proc
 mount -t sysfs     sysfs     /sys
 mount -t tmpfs     tmpfs     /tmp
 
-### added by CMD for share folder ###
-hostshare  /mnt  9p  trans=virtio,version=9p2000.L,rw  0  0
+#~ Mount the shared folder that is configured in qemu start script, e.g.
+#~ -virtfs local,path=./qemu-share,security_model=none,mount_tag=hostshare
+#~ will mount [qemu launch folder]/qemu-share to host /mnt
+#~ (the contents of the folder, not the folder itself, will appear in /mnt)
+mount -t 9p -o trans=virtio,version=9p2000.L,rw hostshare /mnt
 
 # Busybox TTY fix
 setsid cttyhack sh

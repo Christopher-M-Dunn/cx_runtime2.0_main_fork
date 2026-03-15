@@ -1,5 +1,3 @@
-## Untested...
-
 pushd ..
 
 export LIBRARY_PATH=$CX2_ROOT/build-qemu/lib
@@ -7,7 +5,21 @@ export LD_LIBRARY_PATH=$CX2_ROOT/build-qemu/lib
 
 pushd qemu_cx
 
-mkdir build
+# Check if the directory exists
+if [ -d "build" ]; then
+    echo "Stale build directory found at: $(pwd)/build"
+    # Prompt the user
+    read -p "Delete existing build directory and start fresh? (y/n): " confirm
+    if [[ "$confirm" == [yY] || "$confirm" == [yY][eE][sS] ]]; then
+        echo "Wiping build directory..."
+        rm -rf build
+    else
+        echo "Proceeding with existing build directory"
+    fi
+fi
+
+# Create directory if it was deleted or didn't exist
+mkdir -p build
 pushd build
 
 ../configure --target-list=riscv32-softmmu

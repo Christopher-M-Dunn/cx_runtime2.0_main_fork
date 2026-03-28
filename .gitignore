@@ -40,3 +40,4 @@ utils/busybox
 utils/initramfs
 utils/riscv
 *.qcow2
+LOCALFILES

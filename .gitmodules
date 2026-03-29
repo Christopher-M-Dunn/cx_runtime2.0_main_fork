@@ -3,7 +3,7 @@
 	url = git@github.com:UBC-ORCA/riscv-gnu-toolchain.git
 [submodule "linux"]
     path = linux_cx
-    url = git@github.com:UBC-ORCA/linux_cx.git
+    url = git@github.com:Christopher-M-Dunn/linux_cx_UBC_fork.git
     branch = cx_v2
 [submodule "qemu"]
     path = qemu_cx

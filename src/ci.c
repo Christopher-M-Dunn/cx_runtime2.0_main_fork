@@ -214,6 +214,10 @@ static void ucxt_switch(cx_idx_t new_sel) {
     ucxt_restore(new_sel);
 }
 
+void inline cx_sel(cx_select_t sel) {
+    cx_csr_write(CX_SELECTOR_USER, sel);
+}
+
 static void cx_init() {
     for (int i = 0; i < NUM_CXUS; i++) {
         for (int j = 0; j < MAX_NUM_STATES; j++) {

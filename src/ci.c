@@ -236,7 +236,7 @@ cx_select_t cx_open(cx_guid_t cx_guid, cx_virt_t cx_virt, cx_select_t ucx_select
     register long a0 asm("a0") = cx_guid;
     register long a1 asm("a1") = cx_virt;
     register long a2 asm("a2") = ucx_select;
-    register long syscall_id asm("a7") = 457; // cx_open
+    register long syscall_id asm("a7") = 471; // cx_open
     asm volatile ("ecall"
         : "+r"(a0)
         : "r"(a0), "r"(a1), "r"(a2), "r"(syscall_id)
@@ -249,7 +249,7 @@ cx_select_t cx_open(cx_guid_t cx_guid, cx_virt_t cx_virt, cx_select_t ucx_select
 void cx_close(cx_select_t sel) {
     int cx_close_error = -1;
     register long a0 asm("a0") = sel;
-    register long syscall_id asm("a7") = 458; // cx_open
+    register long syscall_id asm("a7") = 472; // cx_close
     asm volatile ("ecall"
         : "+r"(a0)
         : "r"(a0), "r"(syscall_id)
